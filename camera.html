@@ -1,0 +1,1100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="version" content="0.1.1">
+  <link rel="icon" href="data:,">
+  <title>街角等一拍</title>
+  <style>:root {
+  color-scheme: dark;
+  --night: #171e2b;
+  --camera: #222d3a;
+  --line: #495868;
+  --paper: #f4f0e5;
+  --muted: #c1cbd2;
+  --light: #e7cfaa;
+  --focus: #d4efac;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  color: var(--paper);
+  background: var(--night);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 17%, #344257 0%, #202a3b 52%, var(--night) 100%);
+}
+
+button, input { font: inherit; }
+button {
+  min-height: 44px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.camera {
+  width: min(100%, 424px);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--camera);
+  box-shadow: 0 18px 80px #121b29ad;
+}
+
+.top, .brief-title, .photo-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: clamp(23px, 6.1vw, 31px); font-weight: 720; letter-spacing: .045em; line-height: 1.18; }
+h2 { font-size: 18px; line-height: 1.24; }
+
+.quiet {
+  flex: none;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--paper);
+  background: #283544;
+  font-size: 13px;
+}
+
+.quiet:active, .primary:active { transform: translateY(1px); }
+.brief { margin: 10px 1px 9px; padding-top: 10px; border-top: 1px solid var(--line); }
+.brief-title span { font-size: 13px; color: var(--light); font-variant-numeric: tabular-nums; }
+.brief p, .photo p { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.48; }
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  aspect-ratio: 6 / 7;
+  max-height: max(247px, calc(100vh - 270px));
+  max-height: max(247px, calc(100dvh - 270px));
+  border: 1px solid #556579;
+  border-radius: 9px;
+  background: #5b657b;
+  touch-action: none;
+  user-select: none;
+  cursor: ew-resize;
+}
+
+canvas { display: block; width: 100%; height: 100%; object-fit: cover; }
+.stage.frozen { cursor: default; border-color: #eadeca; }
+.stage.frozen canvas { border: 4px solid #eadeca; }
+.finder, .flash { pointer-events: none; position: absolute; inset: 0; }
+.finder i { position: absolute; width: 20px; height: 17px; border: 1px solid #fff4dcd9; }
+.finder i:nth-child(1) { left: 10px; top: 10px; border-right: 0; border-bottom: 0; }
+.finder i:nth-child(2) { right: 10px; top: 10px; border-left: 0; border-bottom: 0; }
+.finder i:nth-child(3) { left: 10px; bottom: 10px; border-right: 0; border-top: 0; }
+.finder i:nth-child(4) { right: 10px; bottom: 10px; border-left: 0; border-top: 0; }
+.stage.frozen .finder { display: none; }
+.flash { opacity: 0; background: #fff8e8; }
+.stage.flashing .flash { animation: flash 260ms ease-out; }
+@keyframes flash { from { opacity: .88; } to { opacity: 0; } }
+
+.cue {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 1px;
+  color: var(--light);
+  font-size: 13px;
+  font-weight: 650;
+}
+.cue i { width: 7px; height: 7px; flex: none; border: 1px solid currentColor; border-radius: 50%; }
+.cue[data-signal="ready"] { color: var(--focus); }
+.cue[data-signal="ready"] i { background: currentColor; box-shadow: 0 0 0 4px #d4efac22; }
+.controls { display: grid; grid-template-columns: minmax(0, 1fr) 74px; align-items: center; gap: 11px; }
+.position { min-width: 0; }
+.position label { color: var(--muted); font-size: 12px; }
+.scale { display: flex; align-items: center; justify-content: space-between; margin: -2px 4px 0; color: var(--muted); font-size: 11px; }
+
+input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: -1px 0 -2px;
+  appearance: none;
+  background: transparent;
+  accent-color: var(--light);
+  cursor: ew-resize;
+}
+input::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, #638094 0 1px, transparent 1px 10%), #14202d;
+}
+input::-moz-range-track {
+  height: 10px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, #638094 0 1px, transparent 1px 10%), #14202d;
+}
+input::-webkit-slider-thumb {
+  appearance: none;
+  width: 21px;
+  height: 26px;
+  margin-top: -8px;
+  border: 1px solid #f2dec0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #dbc3a0 0 41%, #8b785d 42% 53%, #dbc3a0 54%);
+}
+input::-moz-range-thumb {
+  width: 21px;
+  height: 26px;
+  border: 1px solid #f2dec0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #dbc3a0 0 41%, #8b785d 42% 53%, #dbc3a0 54%);
+}
+
+.shutter {
+  align-self: stretch;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  padding: 1px 6px 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 650;
+}
+.shutter-ring {
+  width: 53px;
+  height: 53px;
+  border: 2px solid #e6d4b8;
+  border-radius: 50%;
+  background: #efe4cf;
+  box-shadow: inset 0 0 0 4px var(--camera), 0 3px 10px #142031;
+}
+#play:has(.cue[data-signal="ready"]) .shutter-ring {
+  border-color: var(--focus);
+  background: var(--focus);
+}
+.shutter:active .shutter-ring { transform: scale(.92); }
+
+.photo { padding: 12px 1px 0; }
+.photo-copy h2 { color: var(--light); }
+.photo-actions { margin-top: 9px; justify-content: flex-end; }
+.primary {
+  flex: 1 1 auto;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--light);
+  color: #241e1b;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+@media (max-width: 374px) {
+  .camera { padding: 9px; border-radius: 12px; }
+  .brief { margin-top: 6px; padding-top: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage.flashing .flash { animation: none; }
+}
+</style>
+</head>
+<body>
+  <main class="camera" aria-labelledby="title">
+    <header class="top">
+      <h1 id="title">街角等一拍</h1>
+      <button class="quiet" id="reset" type="button">重开本关</button>
+    </header>
+    <section class="brief" aria-label="拍摄任务">
+      <div class="brief-title">
+        <h2 id="subject">猫尾勾月</h2>
+        <span id="progress" aria-label="第 1 关，共 2 关">1 / 2</span>
+      </div>
+      <p id="prompt">让猫尾尖碰到月牙，再按下快门。</p>
+    </section>
+    <div class="stage" id="stage">
+      <canvas id="scene" width="720" height="840" role="img" aria-label="夜色屋顶，月牙下有一只经过的猫"></canvas>
+      <div class="finder" aria-hidden="true">
+        <i></i><i></i><i></i><i></i>
+      </div>
+      <div class="flash" aria-hidden="true"></div>
+    </div>
+    <section id="play" aria-label="相机控制">
+      <p class="cue" id="cue" data-signal="move"><i aria-hidden="true"></i><span id="cue-text">向右移动机位</span></p>
+      <div class="controls">
+        <div class="position">
+          <label for="view">左右拖动取景框或滑杆</label>
+          <input id="view" type="range" min="-100" max="100" value="0" step="1" aria-label="取景机位">
+          <div class="scale" aria-hidden="true"><span>左</span><span>中</span><span>右</span></div>
+        </div>
+        <button class="shutter" id="shutter" type="button" aria-label="按快门">
+          <span class="shutter-ring" aria-hidden="true"></span>
+          <span>快门</span>
+        </button>
+      </div>
+    </section>
+    <section class="photo" id="photo" aria-label="照片结果" hidden>
+      <div class="photo-copy" aria-live="polite">
+        <h2 id="result"></h2>
+        <p id="detail"></p>
+      </div>
+      <div class="photo-actions">
+        <button class="quiet" id="save" type="button" hidden>保存照片</button>
+        <button class="primary" id="next" type="button"></button>
+      </div>
+    </section>
+  </main>
+  <script>
+// 街角等一拍 v0.1.0 · 两关原创街景 · 逻辑尺寸 360 × 420
+const drawStreetBackdrop = (() => {
+  const paths = new Map();
+  const bounds = new Path2D('M0 0H360V420H0Z');
+
+  function path(commands) {
+    if (!paths.has(commands)) paths.set(commands, new Path2D(commands));
+    return paths.get(commands);
+  }
+
+  function shape(ctx, color, commands) {
+    ctx.fillStyle = color;
+    ctx.fill(path(commands));
+  }
+
+  function ink(ctx, color, width, commands) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke(path(commands));
+  }
+
+  function rect(ctx, color, x, y, width, height) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function wash(ctx, x0, y0, x1, y1, stops) {
+    const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+    for (const [offset, color] of stops) gradient.addColorStop(offset, color);
+    return gradient;
+  }
+
+  const grainLight = new Path2D();
+  const grainDark = new Path2D();
+  let seed = 174113;
+  for (let i = 0; i < 3200; i++) {
+    seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+    const x = (seed >>> 16) / 65536 * 360;
+    seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+    const y = (seed >>> 16) / 65536 * 420;
+    const grain = (seed & 4) === 0 ? grainLight : grainDark;
+    grain.rect(x, y, 0.48 + (seed & 3) * 0.19, 0.52 + ((seed >>> 4) & 3) * 0.17);
+  }
+
+  let grainCanvas;
+
+  function fillGrain(ctx) {
+    ctx.fillStyle = 'rgba(255,224,202,.085)';
+    ctx.fill(grainLight);
+    ctx.fillStyle = 'rgba(28,27,42,.095)';
+    ctx.fill(grainDark);
+  }
+
+  function drawGrain(ctx) {
+    // 页面内只光栅化一次，拖动时复用同一张 2× 纸纹。
+    if (grainCanvas === undefined) {
+      grainCanvas = ctx.canvas.ownerDocument?.createElement('canvas') ?? null;
+      if (grainCanvas) {
+        grainCanvas.width = 720;
+        grainCanvas.height = 840;
+        const texture = grainCanvas.getContext('2d');
+        texture.scale(2, 2);
+        fillGrain(texture);
+      }
+    }
+    if (grainCanvas) ctx.drawImage(grainCanvas, 0, 0, 360, 420);
+    else fillGrain(ctx);
+  }
+
+  function nightSky(ctx) {
+    rect(ctx, wash(ctx, 50, 0, 181, 288, [
+      [0, '#171e3d'], [0.43, '#414976'], [0.74, '#777399'], [1, '#a087a0'],
+    ]), 0, 0, 360, 420);
+
+    const glow = ctx.createRadialGradient(119, 222, 12, 119, 222, 166);
+    glow.addColorStop(0, 'rgba(238,160,139,.36)');
+    glow.addColorStop(1, 'rgba(238,160,139,0)');
+    rect(ctx, glow, 0, 0, 360, 420);
+
+    shape(ctx, wash(ctx, 12, 60, 192, 81, [
+      [0, 'rgba(160,145,178,0)'], [.38, 'rgba(155,145,184,.23)'],
+      [1, 'rgba(160,145,178,0)'],
+    ]), 'M-12 82Q22 75 61 75Q99 74 129 67L173 66Q156 70 125 73Q80 87 37 85Q13 91-12 89Z');
+    shape(ctx, 'rgba(195,158,180,.10)', 'M-4 110Q31 104 52 104Q90 103 133 96Q113 105 80 108Q31 112-4 116Z');
+    shape(ctx, 'rgba(144,142,183,.14)', 'M297 88Q326 82 369 87V92Q335 88 297 90Z');
+    shape(ctx, 'rgba(221,169,178,.12)', 'M22 151Q64 145 93 146Q128 138 168 141Q129 145 104 151Q62 157 22 155Z');
+  }
+
+  function nightDistance(ctx, view) {
+    ctx.save();
+    ctx.translate(-view * 4, 0);
+    shape(ctx, '#77708d', 'M-10 216Q40 213 76 203Q108 197 142 205Q169 211 194 207Q231 202 256 213Q295 220 318 211Q343 202 372 205V331H-10Z');
+    shape(ctx, '#686784', 'M-10 233Q34 225 53 227Q86 215 114 222Q153 231 173 221Q210 213 237 225Q261 231 292 224Q330 217 372 223V334H-10Z');
+
+    // 远处的水箱、楼梯间和山脚住宅。
+    shape(ctx, '#64617f', 'M105 233V215H121V204H128V198H136V204H144V215H160V229H170V218H183V209H192V218H202V229H213V241H105Z');
+    shape(ctx, '#595c7d', 'M277 240V227H287V217H304V209H316V217H330V204H334V200H347V204H352V215H369V246Z');
+    shape(ctx, '#77748e', 'M115 224L145 218L155 221V243H111Z M217 233L240 226L258 231V246H213Z M289 227L303 222L320 225V242H282Z');
+    ink(ctx, 'rgba(228,181,155,.45)', 1, 'M125 212h3m5 0h2m7 12h3m34-1h3m6 0h2m40 9h3m5 0h3m63-7h3m33-17h2m9 9h4');
+    ink(ctx, '#6d6a88', .65, 'M147 203v-12m-6 5h13m171 19v-13m-4 3h10');
+
+    const haze = wash(ctx, 0, 228, 0, 274, [
+      [0, 'rgba(171,151,179,0)'], [.48, 'rgba(157,143,172,.77)'], [1, '#877b9c'],
+    ]);
+    rect(ctx, haze, -10, 228, 380, 77);
+    ctx.restore();
+
+    ink(ctx, 'rgba(44,48,75,.46)', .8, 'M99 198Q148 216 184 221Q252 231 364 212');
+    ink(ctx, 'rgba(44,48,75,.23)', .55, 'M101 202Q166 222 211 225Q292 228 364 217');
+  }
+
+  function nightWindow(ctx, x, y, width, height, light, slope = .06) {
+    ctx.save();
+    ctx.transform(1, slope, 0, 1, x, y);
+    rect(ctx, '#272b46', -2, -2, width + 4, height + 5);
+    rect(ctx, light, 0, 0, width, height);
+    shape(ctx, 'rgba(255,220,165,.58)', `M0 0H${width * .39}Q${width * .33} ${height * .5} ${width * .21} ${height * .78}L0 ${height * .88}Z`);
+    shape(ctx, 'rgba(97,56,68,.44)', `M${width * .75} 0H${width}V${height}H${width * .68}Q${width * .82} ${height * .47} ${width * .75} 0Z`);
+    rect(ctx, '#4e4052', width * .51, 0, 1.15, height);
+    rect(ctx, '#5f4756', 0, height * .61, width, .9);
+    rect(ctx, '#847085', -3, height + 1.5, width + 6, 1.2);
+    ctx.restore();
+  }
+
+  function nightHouses(ctx) {
+    // 近景住宅分列两侧，中央雾带延伸到猫经过的高度。
+    shape(ctx, wash(ctx, 90, 272, 91, 420, [[0, '#817792'], [1, '#3f425f']]), 'M-10 276L81 270L151 282L179 276L224 287L261 281L371 300V420H-10Z');
+    shape(ctx, '#686580', 'M94 295L143 287L165 293L186 286L226 292L248 297V340L94 354Z');
+    shape(ctx, '#555773', 'M91 312L143 301L173 315L168 359L90 365Z');
+    shape(ctx, '#454965', 'M90 314L144 298L176 312L165 318L143 306L94 321Z');
+    shape(ctx, '#5d607d', 'M179 315L206 304L229 311L251 304L284 314V420H221L194 371Z');
+    shape(ctx, '#434964', 'M173 318L205 301L233 311L250 301L288 312V319L251 308L232 318L205 309L178 323Z');
+    shape(ctx, '#5c5d76', 'M156 348L184 341L198 350L226 420H126Z');
+    shape(ctx, wash(ctx, 174, 356, 184, 420, [
+      [0, 'rgba(226,165,136,.26)'], [1, 'rgba(214,156,138,.06)'],
+    ]), 'M175 357L185 354L197 387L212 420H158L171 392Z');
+    ink(ctx, '#9d8189', 1.25, 'M125 326v4m12-7v4m58 3v4m9-6v5m37 2v4m7-5v4m-31 24v5');
+    ink(ctx, 'rgba(36,41,64,.56)', .65, 'M105 339l38-9m-28 23l40-10m88 23l30-8m-31 19l17-6');
+    ink(ctx, 'rgba(171,148,163,.41)', .7, 'M103 313l40-10l21 11m22 3l18-10l18 9m18 0l11-8l19 6 M162 371l37-1m-42 15l47-1m-50 18l57 2');
+    shape(ctx, '#4c4c66', 'M147 323l13-2v5l-13 3Z M212 336l9-1v13l-9 1Z M239 337l15-2v6l-15 2Z');
+    ink(ctx, '#aa838e', .7, 'M149 324l8-1m57 15l5-1m22 1l10-1');
+
+    // 左侧灰瓦、粉墙、两道窗帘暖光。
+    shape(ctx, wash(ctx, -10, 168, 78, 389, [[0, '#68617b'], [.5, '#4c4866'], [1, '#333651']]), 'M-15 169L70 183V355L-15 388Z');
+    shape(ctx, wash(ctx, 74, 183, 120, 355, [[0, '#7b6c86'], [.5, '#60566e'], [1, '#41455f']]), 'M70 183L116 199V314L70 355Z');
+    shape(ctx, '#323751', 'M-15 159L38 138L88 150L126 186L72 193L-15 177Z');
+    shape(ctx, '#51506f', 'M-15 159L38 138L88 150L69 183L-15 170Z');
+    shape(ctx, '#424460', 'M88 150L126 186L72 193L69 183Z');
+    ink(ctx, '#85738a', 1.35, 'M-11 158L38 138L88 150L121 183M-12 173L70 187L123 185');
+    ink(ctx, 'rgba(191,157,167,.28)', .7, 'M-11 164L29 146L74 157 M-12 170L20 154L70 165 M-3 174L12 162L68 173 M31 141l-10 24m24-23l-5 27m20-23l1 26 M93 157l-13 26m24-15l-11 15m22-5l-9 5');
+    ink(ctx, '#393b56', 1.2, 'M37 145l1-25m-12 5l25 4m-18-8l-.5 9m7-8l-.5 10m7-8l-.5 9');
+    ink(ctx, 'rgba(150,123,145,.7)', .65, 'M55 145l27 6 M1 159l10-4m4 4l8-3m4 4l7-3m10 8l10 2m-30-3l9 2m-43 5l9 1 M80 188l39-3');
+    ink(ctx, 'rgba(30,34,56,.47)', 2, 'M-6 185L68 198L114 206 M-6 244L69 250L114 239 M-6 337L68 323L113 296');
+    ink(ctx, 'rgba(191,147,156,.5)', 1, 'M70 197V352M-4 247L68 253L114 242');
+    nightWindow(ctx, 10, 191, 20, 31, '#c88570', .12);
+    nightWindow(ctx, 42, 197, 17, 29, '#e6a277', .12);
+    nightWindow(ctx, 81, 203, 16, 26, '#a66c69', .19);
+    nightWindow(ctx, 18, 278, 24, 34, '#bb786b', -.08);
+    nightWindow(ctx, 85, 266, 15, 24, '#b07571', -.32);
+    shape(ctx, '#40445e', 'M49 271L63 270V307L49 311Z');
+    ink(ctx, '#77667d', .8, 'M52 275v29m4-30v29m4-30v29 M8 321l25-5m-30 10l14-3m63-5l21-15m-106 63l22-8');
+    shape(ctx, '#454860', 'M-9 235L23 238L25 248L-9 245Z M39 233l20 2v7l-18-1Z');
+    ink(ctx, '#8c7284', .7, 'M-2 237l21 3m23-5l13 1m-50 4l15 3');
+    ink(ctx, 'rgba(193,149,151,.26)', .75, 'M0 255l15 2m39 1l10 1m-55 75l29-5m-6 16l19-4m36-96l16-5m-23 71l8-5M4 376l25-10');
+    shape(ctx, '#56516a', 'M5 344L32 338V352L5 360Z');
+    shape(ctx, '#786780', 'M4 342L33 336V341L4 348Z');
+    ink(ctx, '#343951', .75, 'M8 348l19-5m-19 7l19-5m-19 7l19-5m26 11q2-15-6-16l-15 3');
+
+    // 右下相邻的矮房，屋脊比角色屋顶更低。
+    shape(ctx, wash(ctx, 275, 312, 367, 413, [[0, '#61586d'], [1, '#373a55']]), 'M269 338L316 315L371 328V424H269Z');
+    shape(ctx, '#39415e', 'M255 338L304 300L348 298L375 315L375 332L317 318L270 346Z');
+    shape(ctx, '#50556f', 'M255 338L304 300L348 298L317 318L270 341Z');
+    ink(ctx, '#8b778b', 1.05, 'M255 338L304 300L347 298L372 315 M268 341l49-23l56 12');
+    ink(ctx, 'rgba(156,141,163,.42)', .65, 'M271 331l48-29m-37 26l49-28m-38 26l51-29m-87 40l52-33 M333 312l28 10m-19-14l27 11');
+    nightWindow(ctx, 292, 356, 23, 30, '#d19275', -.32);
+    nightWindow(ctx, 330, 351, 21, 33, '#b77569', .2);
+    ink(ctx, 'rgba(180,148,156,.43)', .7, 'M271 358l14-6m-14 38l17-8m29 4l12 1m10 3l20 4 M320 325V420');
+    ink(ctx, 'rgba(134,108,124,.6)', .7, 'M273 398l19-9m-11 13l22-10m-20 14l25-12m36 8l19 3m-31 1l27 5');
+    ink(ctx, '#3b3e57', 1.25, 'M259 358Q217 386 111 366 M259 364Q205 395 111 372');
+  }
+
+  function shopDistance(ctx, view) {
+    rect(ctx, wash(ctx, 0, 0, 360, 250, [[0, '#d08469'], [.74, '#f2ab86'], [1, '#f4c7a0']]), 0, 0, 360, 420);
+    ctx.save();
+    ctx.translate(-view * 3, 0);
+    shape(ctx, '#ba8d7b', 'M280 185V137H298V119H316V126H327V116H348V132H358V120H370V232H280Z');
+    shape(ctx, '#8e8882', 'M291 195V164H307V151H325V164H344V149H354V157H369V236H287Z');
+    shape(ctx, '#707c78', 'M312 183L333 176L348 179L371 171V227L307 235Z');
+    ink(ctx, 'rgba(245,186,143,.58)', .85, 'M347 184h10m-6 5h13m-6 5h10m-44 1h7m-12 5h9m11 4h13');
+    ctx.restore();
+  }
+
+  function shopPavement(ctx) {
+    rect(ctx, wash(ctx, 0, 222, 86, 420, [
+      [0, '#98918a'], [.43, '#ac9b91'], [.69, '#b49f92'], [1, '#8c8085'],
+    ]), 0, 226, 360, 194);
+    shape(ctx, '#bba596', 'M-5 248L275 241L365 211V221L278 260L-5 276Z');
+    shape(ctx, '#a89085', 'M-5 276L278 260L365 221V225L278 265L-5 281Z');
+    ink(ctx, 'rgba(235,193,154,.51)', 1.1, 'M-5 275L278 259L365 220 M6 265L60 259M299 241l31-15');
+    shape(ctx, wash(ctx, 224, 414, 279, 331, [
+      [0, 'rgba(58,63,83,.27)'], [1, 'rgba(58,63,83,0)'],
+    ]), 'M-5 389L104 362L193 363L289 331L365 328V420H-5Z');
+    shape(ctx, wash(ctx, 23, 326, 288, 392, [
+      [0, 'rgba(255,212,161,.28)'], [1, 'rgba(255,212,161,0)'],
+    ]), 'M-8 322L138 314L248 324L359 319L171 350L-8 373Z');
+    ink(ctx, 'rgba(103,95,107,.27)', 1, 'M-5 364Q75 355 127 354L208 343Q279 336 364 337M291 341l24 79M100 358l-68 62M-3 398l74-6m245-25l47 1');
+    ink(ctx, 'rgba(237,197,168,.34)', 1, 'M10 366l69-8m133-13l53-6m-155 54l41-7m177 12l32 2');
+    shape(ctx, '#91878a', 'M28 353l33-5l12 4l-35 6Z');
+    ink(ctx, '#b3a197', .65, 'M34 353l22-4m-18 6l22-4m-19 5l24-4');
+    ink(ctx, 'rgba(105,86,89,.24)', .65, 'M8 376l13-2m-12 6l7-1m52 30l19-6m-7 9l12-4m175-44l15-2m-14 4l8-1m40 45l12 2');
+  }
+
+  function upperWindow(ctx, x, y, width, height) {
+    ctx.save();
+    ctx.transform(1, .073, 0, 1, x, y);
+    rect(ctx, '#885f61', -3, -2, width + 6, height + 5);
+    rect(ctx, '#4b5c62', 0, 0, width, height);
+    shape(ctx, '#687577', `M0 0H${width * .71}L${width * .27} ${height}H0Z`);
+    rect(ctx, '#bd987f', width * .49, 0, 1.1, height);
+    rect(ctx, '#986f62', 0, height * .63, width, 1.25);
+    rect(ctx, '#c8977d', -4, height + 2, width + 8, 2.5);
+    ctx.restore();
+  }
+
+  function shopBuilding(ctx) {
+    shape(ctx, wash(ctx, 272, 82, 361, 200, [[0, '#516c70'], [1, '#354f5d']]), 'M272 40L340 83L352 219L274 251Z');
+    shape(ctx, '#597578', 'M272 39L340 80L341 99L273 63Z');
+    shape(ctx, '#456068', 'M276 111L346 128L347 137L276 123Z M278 186L350 180L350 186L278 197Z');
+    shape(ctx, '#314956', 'M305 123L332 130L335 172L307 176Z M312 190L340 184L343 222L313 234Z');
+    shape(ctx, '#77837b', 'M309 127l18 5l2 37l-19 3Z');
+    shape(ctx, '#a48e76', 'M315 135l11 3l1 21l-12 2Z');
+    ink(ctx, 'rgba(176,181,156,.5)', 1, 'M280 129l62 12m-58 40l63-7m-34-44l2 41m-5-16l20-1m-1 37l3 32');
+
+    shape(ctx, wash(ctx, 5, 26, 278, 105, [[0, '#e1ab8d'], [.45, '#ca9279'], [1, '#a47769']]), 'M-15 12L273 37L278 110L-15 97Z');
+    shape(ctx, '#b78170', 'M-15 11L273 35L344 80L340 85L273 42L-15 20Z');
+    ink(ctx, '#ecc0a0', 1.25, 'M-12 13L273 37L341 81');
+    ink(ctx, 'rgba(129,79,80,.35)', 1.5, 'M-8 22L269 47 M-9 77L270 92');
+    upperWindow(ctx, 22, 30, 34, 38);
+    upperWindow(ctx, 80, 35, 29, 37);
+    upperWindow(ctx, 171, 42, 40, 38);
+    upperWindow(ctx, 236, 48, 22, 36);
+    shape(ctx, '#a88b7b', 'M124 57L150 59V76L124 75Z');
+    ink(ctx, '#705d61', .8, 'M128 61l15 1m-15 2l15 1m-15 2l15 1m-15 2l15 1 M121 75q-1 8 12 9');
+    ink(ctx, 'rgba(243,188,155,.58)', .9, 'M1 36l14 1m43 19l12 2m41 27l18 2m80-40l16 1m-10 29l13 1 M158 42v35');
+    ink(ctx, 'rgba(141,88,78,.39)', .7, 'M5 47l7 1m14 29l31 3m7-28l11 1m44 1l20 2m3 19l19 1m59-17l9 2m-9 2l9 1m24 23l11 1');
+    ink(ctx, 'rgba(82,62,68,.63)', 1, 'M-8 79Q57 96 140 88Q218 95 275 88Q310 101 363 113');
+    ink(ctx, 'rgba(82,62,68,.32)', .6, 'M-8 75Q74 95 141 85Q217 91 276 85Q315 99 363 110');
+
+    shape(ctx, wash(ctx, 37, 112, 269, 242, [[0, '#5c8380'], [.5, '#426d6f'], [1, '#365961']]), 'M-15 91L275 103L278 247L-15 259Z');
+    shape(ctx, '#3d6468', 'M-14 236L278 234V250L-14 261Z');
+    ink(ctx, 'rgba(187,190,156,.46)', 1, 'M-13 246L277 242m-9-99l2 99m-19-100l2 92');
+
+    // 橱窗的反光压在高处，花束背后是整片青色灰泥。
+    shape(ctx, '#2e4d55', 'M5 111L74 116V242L3 245Z M82 112L249 117L250 182L81 181Z');
+    shape(ctx, wash(ctx, 8, 154, 244, 173, [[0, '#3b5a5c'], [.37, '#637568'], [.75, '#4d706d'], [1, '#829080']]), 'M10 121L68 125V237L8 240Z M88 120L242 126L244 174L88 174Z');
+    shape(ctx, 'rgba(239,176,125,.33)', 'M94 141L134 137L112 172H91Z M174 140L209 137L194 174H158Z M220 147l20-5v19l-15 13h-18Z');
+    shape(ctx, 'rgba(37,66,66,.58)', 'M90 165Q113 161 127 164L140 167Q162 160 186 163L206 164Q226 159 243 162V175H88Z');
+    shape(ctx, '#9a806b', 'M17 150l11 1v24l-11 1Z M49 199l9-1l-1 20l-8 2Z M98 155l8-3l4 16l-13 1Z M225 150l7 2l2 16l-11 1Z');
+    shape(ctx, '#c5a48a', 'M19 148l9 1v4l-9-1Z M97 154l8-3l1 2l-9 4Z M223 149l9 2v2l-9-1Z');
+    shape(ctx, 'rgba(42,79,66,.72)', 'M110 164Q106 159 110 155Q113 155 116 161Q114 152 120 150Q123 156 118 163Q124 156 129 159Q128 164 119 166L118 171H112Z M201 165Q196 157 201 154Q205 155 207 162Q208 151 213 153Q217 158 209 165L208 172H202Z');
+    shape(ctx, '#947e6b', 'M109 165l11-.5l-2 8.5l-7 .1Z M199 166l12-1l-2 8.5l-8 .2Z');
+    ink(ctx, '#344f55', 2.2, 'M23 124v113m29-111v110M9 184l58-2 M133 124v51m55-48v48M89 151l154 2');
+    ink(ctx, 'rgba(181,197,173,.47)', 1, 'M27 127v106M56 130v103M136 128v44m55-42v42 M92 154l148 2');
+    shape(ctx, '#264951', 'M78 178L255 178V184L78 188Z');
+    ink(ctx, '#829c8a', 1.4, 'M79 178L254 179 M79 193L75 239');
+    shape(ctx, wash(ctx, 84, 193, 247, 240, [[0, '#476e6d'], [1, '#365a61']]), 'M81 192L248 189V233L80 239Z');
+    ink(ctx, 'rgba(171,190,159,.16)', .8, 'M85 199l19-1m105-1l29-2m-14 28l12-1m-142 9l31-2 M264 109l3 128');
+    ink(ctx, '#ce9d7c', 1.4, 'M62 191v7');
+    ink(ctx, '#354e5a', 2, 'M273 84L277 231Q278 243 288 241');
+    ink(ctx, '#9a8b7f', .8, 'M272 86l4 145');
+    ink(ctx, '#304951', 1.4, 'M260 149q-5-8-8-1l-2 4');
+    shape(ctx, '#344c53', 'M244 157q3-7 7-7q4 3 5 7l-2 2l-8 .5Z');
+    shape(ctx, '#e4b08b', 'M246 157l8-.5l-1 3l-5 .3Z');
+    ink(ctx, 'rgba(167,176,150,.38)', .7, 'M8 232l15-1m14 15l17-1m24-5l26-.5m116 .2l25-.5m10-6l10-.5m22-36l12-1m-15 12l15-1');
+
+    // 旧帆布遮雨棚的斜面和垂边。
+    shape(ctx, 'rgba(28,54,59,.45)', 'M-10 122L266 132L253 151L-10 141Z');
+    shape(ctx, '#b68168', 'M-12 96L247 108L268 132L-20 123Z');
+    for (let stripe = 0; stripe < 14; stripe++) {
+      const x = -17 + stripe * 19;
+      const lip = -21 + stripe * 21;
+      const y = 96 + stripe * .87;
+      const lower = 123 + stripe * .69;
+      const color = stripe % 2 === 0 ? '#efc298' : '#b97864';
+      const edge = stripe % 2 === 0 ? '#cb9d7b' : '#965f56';
+      shape(ctx, color, `M${x} ${y}l19 .87L${lip + 21} ${lower + .69}L${lip} ${lower}Z`);
+      shape(ctx, edge, `M${lip} ${lower}l21 .69v6.5q-10 5.5-21-.5Z`);
+    }
+    ink(ctx, 'rgba(255,222,177,.56)', 1, 'M-12 97L247 109 M-13 122L267 132');
+    ink(ctx, 'rgba(122,83,79,.30)', .85, 'M-8 114L251 123 M-7 116L257 125');
+  }
+
+  function shopPlants(ctx) {
+    shape(ctx, 'rgba(54,69,70,.27)', 'M-10 252Q27 244 69 255Q41 260-10 263Z M268 242Q299 229 329 234L318 244L278 247Z');
+    shape(ctx, '#8b6661', 'M12 224L41 222L37 248L17 250Z M280 222l22-6l-2 22l-17 5Z');
+    shape(ctx, '#b48069', 'M12 228l27-2l-2 6l-24 2Z M280 224l22-6l-1 6l-20 6Z');
+    shape(ctx, '#433f43', 'M11 222Q27 216 42 221V225L13 229Z M280 219q11-5 23-4l-.5 4l-23 7Z');
+    ink(ctx, '#526753', 1.35, 'M26 222Q23 198 7 180M25 222Q40 208 43 184M25 221Q25 195 31 176M23 218Q18 206 3 201M290 219Q294 191 306 173M291 220Q282 199 270 189M291 217Q301 202 315 195');
+    shape(ctx, '#365650', 'M18 204Q6 205 1 194Q14 192 18 204Z M24 211Q33 201 38 203Q37 212 24 214Z M22 198Q13 195 10 185Q21 186 22 198Z M28 197Q29 186 36 181Q41 191 28 197Z M11 209Q2 207-3 212Q4 218 11 209Z M288 212Q276 209 276 200Q287 200 288 212Z M296 201Q298 190 310 188Q308 197 296 201Z M300 210Q308 200 319 204Q310 212 300 210Z');
+    shape(ctx, '#6e8b70', 'M22 193Q20 185 25 178Q31 182 22 193Z M8 188Q-2 189-6 182Q3 180 8 188Z M37 198Q38 187 46 182Q47 194 37 198Z M275 196Q266 196 262 187Q272 187 275 196Z M301 185Q301 175 308 169Q312 179 301 185Z M309 199Q313 190 321 190Q319 198 309 199Z');
+    shape(ctx, '#557560', 'M7 203Q2 193 4 188Q12 190 11 202Z M18 211Q16 203 21 200Q25 206 18 211Z M25 218Q35 211 42 214Q36 221 25 218Z M31 189Q30 182 33 175Q40 179 31 189Z M290 202Q284 194 287 186Q295 191 290 202Z M299 194Q307 185 315 185Q313 194 299 194Z M292 216Q300 210 306 212Q302 218 292 216Z');
+    ink(ctx, 'rgba(182,166,123,.59)', .65, 'M20 201q-6-7-12-10m21 10q4-7 7-9m-11 11l-5-8m274 9q4-9 9-14m-12 19l-8-7m16 8l10-3');
+    ink(ctx, 'rgba(223,176,131,.45)', .6, 'M16 232l2 14m15-14l-1 12m252-14l2 10m11-12l-1 8');
+  }
+
+  return function drawStreetBackdrop(ctx, scene, view = 0) {
+    ctx.save();
+    ctx.clip(bounds);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowColor = 'transparent';
+    ctx.filter = 'none';
+    ctx.setLineDash([]);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.imageSmoothingEnabled = true;
+
+    const pan = Math.max(-1, Math.min(1, view));
+    if (scene === 1) {
+      shopDistance(ctx, pan);
+      shopPavement(ctx);
+      shopBuilding(ctx);
+      shopPlants(ctx);
+    } else {
+      nightSky(ctx);
+      nightDistance(ctx, pan);
+      nightHouses(ctx);
+    }
+
+    drawGrain(ctx);
+    ctx.restore();
+  };
+})();
+
+const WIDTH = 360;
+const HEIGHT = 420;
+
+const levels = [
+  {
+    title: '猫尾勾月',
+    prompt: '让猫尾尖碰到月牙，再按下快门。',
+    description: '蓝调屋顶上，一只猫从月牙下经过',
+    wait: '机位合适，等猫尾走到月牙下',
+    photo: '猫尾绕过屋脊，刚好勾住月牙。',
+    aim: .6, cycle: 5, speed: 45, edgeSpeed: 18,
+    toleranceX: 14, toleranceY: 7
+  },
+  {
+    title: '车篮接花',
+    prompt: '等车篮来到花束下方，拍出接住花的一瞬。',
+    description: '花店门口悬着一束花，自行车从店前驶过',
+    wait: '机位合适，等车篮驶到花束下',
+    photo: '自行车经过花店，花束在照片里落进了车篮。',
+    aim: -.6, cycle: 4, speed: 64, edgeSpeed: 25,
+    toleranceX: 10, toleranceY: 4.5
+  }
+];
+
+function composition(scene, view, seconds) {
+  const level = levels[scene];
+  const time = seconds % level.cycle;
+  const centeredTime = time - level.cycle / 2;
+  const relativeView = view - level.aim;
+  const travel = centeredTime * (level.speed + level.edgeSpeed * centeredTime ** 2);
+  const target = scene === 0
+    ? {x: 241 - 12 * view, y: 170 - 4 * view}
+    : {x: 153 - 49 * view, y: 217 - 28 * view};
+  const actor = scene === 0
+    ? {x: target.x + travel - 30 * relativeView, y: target.y + 23 * relativeView}
+    : {x: target.x + travel + 33 * relativeView, y: target.y + 25 * relativeView};
+  const dx = actor.x - target.x;
+  const dy = actor.y - target.y;
+  const aligned = Math.abs(dy) <= level.toleranceY;
+  return {time, target, actor, dx, aligned, ready: aligned && Math.abs(dx) <= level.toleranceX};
+}
+
+function oval(ctx, color, x, y, rx, ry, angle = 0) {
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, angle, 0, 2 * Math.PI);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+function paintMoon(ctx, target) {
+  const x = target.x - 5;
+  const y = target.y - 14;
+  const halo = ctx.createRadialGradient(x, y, 5, x, y, 42);
+  halo.addColorStop(0, '#ffe0b555');
+  halo.addColorStop(1, '#ffe0b500');
+  oval(ctx, halo, x, y, 42, 42);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#ffdfa7';
+  ctx.fill(moonShape);
+  ctx.restore();
+}
+
+const moonShape = new Path2D('M11 -12C-3 -24 -20 -10 -16 5C-13 18 4 20 12 8C5 14 -6 11 -9 3C-12 -5 -1 -15 11 -12Z');
+const catBody = new Path2D('M24 67C28 57 42 55 51 60L57 64C63 58 71 61 73 68C77 79 63 84 53 84L38 87C25 86 17 78 24 67Z');
+const catHead = new Path2D('M53 64L53 54Q55 51 61 57L66 58L70 51Q73 50 74 62Q80 65 80 72Q72 80 62 74Z');
+const catTail = new Path2D('M28 72C15 58 6 42 15 26C22 14 21 5 13 1C7 -3 3 -3 0 0');
+
+function paintRoof(ctx, y) {
+  ctx.save();
+  ctx.translate(0, y);
+  const tiles = ctx.createLinearGradient(0, 0, 0, 65);
+  tiles.addColorStop(0, '#6e6c7b');
+  tiles.addColorStop(.16, '#403a49');
+  tiles.addColorStop(1, '#212638');
+  ctx.fillStyle = tiles;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(WIDTH, 0);
+  ctx.lineTo(WIDTH, 35);
+  ctx.lineTo(0, 67);
+  ctx.closePath();
+  ctx.fill();
+  ctx.clip();
+  ctx.fillStyle = '#c39382';
+  ctx.fillRect(0, 0, WIDTH, 1.5);
+  ctx.strokeStyle = '#686275';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = -12; x < WIDTH + 36; x += 17) {
+    ctx.moveTo(x, 3);
+    ctx.quadraticCurveTo(x - 6, 18, x - 28, 65);
+  }
+  ctx.moveTo(0, 30);
+  ctx.lineTo(WIDTH, 16);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function paintCat(ctx, frame) {
+  const {actor, time} = frame;
+  ctx.save();
+  ctx.translate(actor.x, actor.y);
+  oval(ctx, '#141c2d73', 44, 96, 41, 3);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#4e3d49';
+  ctx.lineWidth = 10;
+  ctx.stroke(catTail);
+  ctx.strokeStyle = '#d69b79';
+  ctx.lineWidth = 6.5;
+  ctx.stroke(catTail);
+  oval(ctx, '#f5c998', 1, 0, 3.6, 3.6);
+
+  const stride = Math.sin(time * 4.4 * Math.PI) * 8;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(34, 78);
+  ctx.lineTo(36 - stride, 92);
+  ctx.moveTo(64, 77);
+  ctx.lineTo(64 + stride, 92);
+  ctx.strokeStyle = '#8e5b54';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(32, 80);
+  ctx.lineTo(31 + stride, 93);
+  ctx.moveTo(62, 78);
+  ctx.lineTo(64 - stride, 93);
+  ctx.strokeStyle = '#e6b28b';
+  ctx.stroke();
+
+  ctx.fillStyle = '#e6b48c';
+  ctx.fill(catBody);
+  oval(ctx, '#a0685e', 36, 65, 7, 6, -.3);
+  oval(ctx, '#f2d5ad', 52, 80, 13, 5, -.2);
+  ctx.fillStyle = '#f3c99c';
+  ctx.fill(catHead);
+  oval(ctx, '#ac7272', 71, 56, 1.6, 2.8, -.14);
+  oval(ctx, '#533b48', 72, 65, 1.25, 1.8);
+  oval(ctx, '#835153', 79, 70, 1.5, 1.2);
+  ctx.strokeStyle = '#fff1cc';
+  ctx.lineWidth = .7;
+  ctx.beginPath();
+  ctx.moveTo(75, 70);
+  ctx.lineTo(87, 67);
+  ctx.moveTo(76, 72);
+  ctx.lineTo(87, 73);
+  ctx.stroke();
+  ctx.restore();
+}
+
+const bicycleFrame = new Path2D('M-87 62L-72 33L-39 49L-54 63H-87M-72 33H-27L-18 62M-54 63L-72 33M-27 33L-32 20L-23 19M-76 31H-67');
+const basketRack = new Path2D('M-29 21L-12 20H8M-2 19L-25 34');
+const basket = new Path2D('M-14 0H14L10 18H-10Z');
+const riderCoat = new Path2D('M-79 12Q-80 -4 -69 -11Q-60 -17 -49 -7Q-46 -3 -43 9L-31 18L-34 24L-49 19L-55 13L-62 32L-79 28Z');
+const riderHair = new Path2D('M-69 -21Q-64 -31 -54 -29Q-46 -27 -45 -19L-52 -16L-53 -21L-60 -15L-60 -6L-69 -5Z');
+
+function paintWheel(ctx, x, y, phase) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(phase);
+  ctx.beginPath();
+  ctx.arc(0, 0, 17, 0, 2 * Math.PI);
+  ctx.lineWidth = 3.4;
+  ctx.strokeStyle = '#283640';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 14.7, 0, 2 * Math.PI);
+  ctx.lineWidth = 1.25;
+  ctx.strokeStyle = '#f2d4ac';
+  for (let spoke = 0; spoke < 8; spoke += 1) {
+    const theta = spoke * Math.PI / 4;
+    ctx.moveTo(0, 0);
+    ctx.lineTo(14 * Math.cos(theta), 14 * Math.sin(theta));
+  }
+  ctx.stroke();
+  oval(ctx, '#8f7b6e', 0, 0, 2.7, 2.7);
+  ctx.restore();
+}
+
+function paintBicycle(ctx, frame) {
+  const {actor} = frame;
+  const phase = actor.x / 17;
+  ctx.save();
+  ctx.translate(actor.x, actor.y);
+  oval(ctx, '#40333840', -52, 80, 57, 4);
+  paintWheel(ctx, -87, 62, phase);
+  paintWheel(ctx, -18, 62, phase);
+  ctx.strokeStyle = '#315965';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke(bicycleFrame);
+
+  const pedalX = -54 + 8 * Math.cos(phase);
+  const pedalY = 60 + 7 * Math.sin(phase);
+  ctx.beginPath();
+  ctx.moveTo(-72, 26);
+  ctx.lineTo(-51, 40);
+  ctx.lineTo(pedalX, pedalY);
+  ctx.strokeStyle = '#c19f8d';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(pedalX - 1, pedalY);
+  ctx.lineTo(pedalX + 6, pedalY + 1);
+  ctx.strokeStyle = '#3f3b45';
+  ctx.lineWidth = 4.5;
+  ctx.stroke();
+  oval(ctx, '#dda586', -55, -16, 9, 11, .15);
+  ctx.fillStyle = '#3a303a';
+  ctx.fill(riderHair);
+  ctx.fillStyle = '#627689';
+  ctx.fill(riderCoat);
+  oval(ctx, '#e0a287', -31, 20, 3.9, 3.2);
+  ctx.strokeStyle = '#d6b9a2';
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(-62, -9);
+  ctx.quadraticCurveTo(-64, 4, -73, 21);
+  ctx.stroke();
+  oval(ctx, '#c98c78', -74, 20, 7, 8, .3);
+
+  ctx.strokeStyle = '#315965';
+  ctx.lineWidth = 2.2;
+  ctx.stroke(basketRack);
+  ctx.fillStyle = '#c28d62';
+  ctx.fill(basket);
+  ctx.save();
+  ctx.clip(basket);
+  ctx.strokeStyle = '#f0c58b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let y = 4; y <= 16; y += 4) {
+    ctx.moveTo(-15, y);
+    ctx.lineTo(15, y);
+  }
+  for (let x = -11; x <= 11; x += 4) {
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x * .68, 18);
+  }
+  ctx.stroke();
+  ctx.restore();
+  oval(ctx, '#654c44', 0, 0, 14, 3);
+  ctx.restore();
+}
+
+const wrapping = new Path2D('M-16 -21L-7 2Q0 8 8 1L17 -23L2 -17Z');
+const flowers = [
+  [-13, -25, '#efad89', '#d68874'],
+  [9, -28, '#ffcc9c', '#c9895f'],
+  [-4, -37, '#ffd4a4', '#cc895a'],
+  [2, -19, '#f1a28a', '#b9736c']
+];
+
+function paintFlowers(ctx, target) {
+  ctx.save();
+  ctx.translate(target.x, target.y);
+  ctx.strokeStyle = '#dcd0a383';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -42);
+  ctx.lineTo(-5, 123 - target.y);
+  ctx.stroke();
+  oval(ctx, '#788c62', -14, -18, 3.2, 10, -.65);
+  oval(ctx, '#97a570', 11, -15, 3.8, 12, .79);
+  ctx.strokeStyle = '#a4a775';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (const [x, y] of flowers) {
+    ctx.moveTo(-2, 1);
+    ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#e8c7a3';
+  ctx.fill(wrapping);
+  oval(ctx, '#c57367', 1, -2, 7, 1.7, -.12);
+  for (const [x, y, petal, middle] of flowers) {
+    for (let lobe = 0; lobe < 5; lobe += 1) {
+      const angle = lobe * Math.PI * .4;
+      oval(ctx, petal, x + 5 * Math.cos(angle), y + 5 * Math.sin(angle), 5.2, 3.2, angle);
+    }
+    oval(ctx, middle, x, y, 3.1, 3.1);
+    oval(ctx, '#ffdd91', x - 1, y - .8, 1.2, 1.2);
+  }
+  ctx.restore();
+}
+
+function paintGuide(ctx, frame) {
+  const {target, actor, ready, aligned} = frame;
+  ctx.save();
+  ctx.lineWidth = ready ? 2.1 : 1.3;
+  ctx.strokeStyle = ready ? '#dcf7aa' : '#fff1d6';
+  ctx.shadowBlur = 3;
+  ctx.shadowColor = '#111a2b';
+  if (!ready) ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, ready ? 13 : 14, 0, 2 * Math.PI);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = aligned ? '#dcf7aa' : '#fff1d6ba';
+  ctx.beginPath();
+  ctx.arc(actor.x, actor.y, 3.8, 0, 2 * Math.PI);
+  ctx.stroke();
+  ctx.restore();
+}
+
+(() => {
+  'use strict';
+
+  const byId = (id) => document.getElementById(id);
+  const stage = byId('stage');
+  const canvas = byId('scene');
+  const ctx = canvas.getContext('2d');
+  const backdrop = document.createElement('canvas');
+  const backdropCtx = backdrop.getContext('2d');
+  const slider = byId('view');
+  const cue = byId('cue');
+  const cueText = byId('cue-text');
+  const play = byId('play');
+  const photo = byId('photo');
+  const shutter = byId('shutter');
+  const next = byId('next');
+  const save = byId('save');
+
+  let scene = 0;
+  let view = 0;
+  let seconds = 0;
+  let animation = 0;
+  let lastTick = null;
+  let frame;
+  let pressedFrame = null;
+  let drag = null;
+  let backdropKey = '';
+
+  function paint(frameToDraw, guides) {
+    const density = Math.min(3, Math.max(1.5, window.devicePixelRatio || 1));
+    const pixelWidth = Math.round(WIDTH * density);
+    const pixelHeight = Math.round(HEIGHT * density);
+    const key = [scene, view, pixelWidth, pixelHeight].join('/');
+    if (key !== backdropKey) {
+      backdrop.width = pixelWidth;
+      backdrop.height = pixelHeight;
+      backdropCtx.setTransform(density, 0, 0, density, 0, 0);
+      drawStreetBackdrop(backdropCtx, scene, view);
+      backdropKey = key;
+    }
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+    ctx.setTransform(density, 0, 0, density, 0, 0);
+    ctx.drawImage(backdrop, 0, 0, WIDTH, HEIGHT);
+    if (scene === 0) {
+      paintMoon(ctx, frameToDraw.target);
+      paintRoof(ctx, frameToDraw.actor.y + 96);
+      paintCat(ctx, frameToDraw);
+    } else {
+      paintBicycle(ctx, frameToDraw);
+      paintFlowers(ctx, frameToDraw.target);
+    }
+    if (guides) paintGuide(ctx, frameToDraw);
+  }
+
+  function direction() {
+    return view < levels[scene].aim ? '右' : '左';
+  }
+
+  function render() {
+    frame = composition(scene, view, seconds);
+    paint(frame, true);
+    const signal = frame.ready ? 'ready' : frame.aligned ? 'wait' : 'move';
+    const line = frame.ready ? '现在拍'
+      : frame.aligned ? levels[scene].wait : '向' + direction() + '移动机位';
+    if (cueText.textContent !== line) {
+      cue.dataset.signal = signal;
+      cueText.textContent = line;
+    }
+  }
+
+  function advance(now) {
+    if (lastTick !== null) {
+      seconds = (seconds + Math.min(.05, (now - lastTick) / 1000)) % levels[scene].cycle;
+    }
+    lastTick = now;
+    render();
+    animation = requestAnimationFrame(advance);
+  }
+
+  function resume() {
+    cancelAnimationFrame(animation);
+    lastTick = null;
+    play.hidden = false;
+    photo.hidden = true;
+    stage.classList.remove('frozen', 'flashing');
+    render();
+    animation = requestAnimationFrame(advance);
+  }
+
+  function start(levelIndex) {
+    scene = levelIndex;
+    view = 0;
+    seconds = 0;
+    pressedFrame = null;
+    drag = null;
+    slider.value = '0';
+    slider.setAttribute('aria-valuetext', '居中');
+    const level = levels[scene];
+    byId('subject').textContent = level.title;
+    byId('prompt').textContent = level.prompt;
+    byId('progress').textContent = (scene + 1) + ' / ' + levels.length;
+    byId('progress').setAttribute('aria-label', '第 ' + (scene + 1) + ' 关，共 ' + levels.length + ' 关');
+    canvas.setAttribute('aria-label', level.description);
+    resume();
+  }
+
+  function setView(value) {
+    const percent = Math.round(Math.max(-100, Math.min(value, 100)));
+    pressedFrame = null;
+    view = percent / 100;
+    slider.value = String(percent);
+    const position = percent === 0 ? '居中' : (percent < 0 ? '左' : '右') + ' ' + Math.abs(percent) + '%';
+    slider.setAttribute('aria-valuetext', position);
+    render();
+  }
+
+  slider.addEventListener('input', () => setView(Number(slider.value)));
+  stage.addEventListener('pointerdown', (event) => {
+    if (play.hidden || drag || event.button !== 0) return;
+    drag = {id: event.pointerId, x: event.clientX, percent: view * 100};
+    stage.setPointerCapture(event.pointerId);
+  });
+  stage.addEventListener('pointermove', (event) => {
+    if (drag?.id !== event.pointerId) return;
+    const factor = 200 / stage.clientWidth;
+    setView(drag.percent + (event.clientX - drag.x) * factor);
+  });
+  for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    stage.addEventListener(eventName, (event) => {
+      if (drag?.id === event.pointerId) drag = null;
+    });
+  }
+
+  function shoot(captured) {
+    if (play.hidden) return;
+    cancelAnimationFrame(animation);
+    drag = null;
+    const level = levels[scene];
+    frame = captured;
+    seconds = captured.time;
+    const cleared = captured.ready;
+    const final = scene === levels.length - 1;
+    paint(captured, false);
+    stage.classList.add('frozen', 'flashing');
+    const resultText = cleared ? (final ? '两景拍齐了' : '拍到了') : '这张还差一点';
+    const missed = captured.aligned
+      ? (captured.dx < 0 ? '快门按早了，等主体再靠近一点。' : '快门按晚了，下次经过时试着早一点。')
+      : '向' + direction() + '移一点，让两处在同一高度。';
+    byId('result').textContent = resultText;
+    byId('detail').textContent = cleared ? level.photo : missed;
+    canvas.setAttribute('aria-label', level.description + '。' + resultText);
+    save.hidden = !cleared;
+    next.textContent = cleared ? (final ? '从第一关重玩' : '去下一关') : '重拍';
+    play.hidden = true;
+    photo.hidden = false;
+    next.focus({preventScroll: true});
+  }
+
+  // Keep the shutter in place until the gesture's click is dispatched.
+  shutter.addEventListener('pointerdown', (event) => {
+    if (event.isPrimary && event.button === 0) pressedFrame = frame;
+  });
+  shutter.addEventListener('pointercancel', () => {
+    pressedFrame = null;
+  });
+  shutter.addEventListener('click', (event) => {
+    const captured = event.detail > 0 ? (pressedFrame ?? frame) : frame;
+    pressedFrame = null;
+    shoot(captured);
+  });
+  next.addEventListener('click', () => {
+    if (frame.ready) {
+      start((scene + 1) % levels.length);
+    } else {
+      canvas.setAttribute('aria-label', levels[scene].description);
+      resume();
+    }
+    slider.focus({preventScroll: true});
+  });
+  byId('reset').addEventListener('click', () => start(scene));
+  save.addEventListener('click', () => {
+    const download = document.createElement('a');
+    download.download = levels[scene].title + '.png';
+    download.href = canvas.toDataURL('image/png');
+    document.body.append(download);
+    download.click();
+    download.remove();
+  });
+  document.addEventListener('visibilitychange', () => { lastTick = null; });
+
+  start(0);
+})();
+
+  </script>
+</body>
+</html>
